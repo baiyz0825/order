@@ -1,0 +1,15 @@
+# Worktrees
+.worktrees/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+# Miniprogram
+miniprogram_npm/
