@@ -6,21 +6,23 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('开始填充种子数据...')
 
-  // 1. 创建管理员
-  const hashedPassword = await bcrypt.hash('admin123', 10)
-  // 先查询是否已存在
-  let admin = await prisma.user.findUnique({ where: { email: 'admin@example.com' } })
-  if (!admin) {
-    admin = await prisma.user.create({
-      data: {
-        email: 'admin@example.com',
-        password: hashedPassword,
-        name: '店长',
-        role: 'admin',
-      },
-    })
+  // 1. 创建开发管理员（仅用于开发/测试环境）
+  // 生产环境的管理员由用户在初始化向导中创建
+  if (process.env.CREATE_DEV_ADMIN === 'true') {
+    const hashedPassword = await bcrypt.hash('admin123', 10)
+    let admin = await prisma.user.findUnique({ where: { email: 'admin@example.com' } })
+    if (!admin) {
+      admin = await prisma.user.create({
+        data: {
+          email: 'admin@example.com',
+          password: hashedPassword,
+          name: '店长',
+          role: 'admin',
+        },
+      })
+      console.log(`开发管理员已创建: ${admin.email}`)
+    }
   }
-  console.log(`管理员已创建: ${admin.email}`)
 
   // 1.5 创建 mock 顾客用户
   const customerPassword = await bcrypt.hash('123456', 10)

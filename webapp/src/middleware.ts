@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { verifyToken } from './lib/auth'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
 
   // 自动设置 session_id cookie
@@ -28,17 +29,61 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // 已登录管理员访问管理登录/注册页 → 跳转到管理后台
-  if (pathname === '/admin/login' || pathname === '/admin/register') {
-    if (adminToken) {
-      return NextResponse.redirect(new URL('/admin', request.url))
-    }
-    return response
-  }
-
-  // 管理端页面鉴权
+  // 管理端路由处理
   if (pathname.startsWith('/admin')) {
-    if (!adminToken) {
+    // 初始化页面和初始化API不需要检查
+    if (pathname === '/admin/setup' || pathname.startsWith('/api/admin/setup')) {
+      // 如果已初始化且访问初始化页面，重定向到管理后台
+      if (pathname === '/admin/setup' && !pathname.startsWith('/api')) {
+        try {
+          // 检查初始化状态
+          const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin}/api/admin/setup/status`, {
+            headers: {
+              cookie: request.headers.get('cookie') || '',
+            },
+          })
+          if (statusResponse.ok) {
+            const { initialized } = await statusResponse.json()
+            if (initialized) {
+              return NextResponse.redirect(new URL('/admin', request.url))
+            }
+          }
+        } catch (error) {
+          console.error('检查初始化状态失败:', error)
+        }
+      }
+      return response
+    }
+
+    // 检查系统初始化状态（除了初始化相关路由）
+    try {
+      const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin}/api/admin/setup/status`, {
+        headers: {
+          cookie: request.headers.get('cookie') || '',
+        },
+      })
+      if (statusResponse.ok) {
+        const { initialized } = await statusResponse.json()
+        if (!initialized) {
+          // 未初始化，重定向到初始化页面
+          return NextResponse.redirect(new URL('/admin/setup', request.url))
+        }
+      }
+    } catch (error) {
+      console.error('检查初始化状态失败:', error)
+      // 出错时假设已初始化，避免死循环
+    }
+
+    // 已登录管理员访问管理登录/注册页 → 跳转到管理后台
+    if (pathname === '/admin/login' || pathname === '/admin/register') {
+      if (adminToken) {
+        return NextResponse.redirect(new URL('/admin', request.url))
+      }
+      return response
+    }
+
+    // 管理端页面鉴权（非API路由）
+    if (!pathname.startsWith('/api') && !adminToken) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
   }
